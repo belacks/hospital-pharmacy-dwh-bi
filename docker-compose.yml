@@ -1,0 +1,62 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pharmacy_dwh_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pharmacy_dwh_data:/var/lib/postgresql/data
+      - ./sql:/sql:ro
+    networks:
+      - pharmacy_dwh_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  etl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pharmacy_dwh_etl:latest
+    container_name: pharmacy_dwh_etl
+    environment:
+      # Override host to use Docker service name
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SAMPLE_SIZE: ${SAMPLE_SIZE:-100000}
+    volumes:
+      # Bind mounts for development (override bake)
+      - ./etl:/app/etl
+      - ./sql:/app/sql
+      - ./scripts:/app/scripts
+      - ./data:/app/data
+    networks:
+      - pharmacy_dwh_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - etl  # Only start when explicitly invoked
+    # Default: keep alive for `docker compose run etl <command>`
+    command: ["sleep", "infinity"]
+
+networks:
+  pharmacy_dwh_network:
+    name: pharmacy_dwh_network
+    driver: bridge
+
+volumes:
+  pharmacy_dwh_data:
+    name: pharmacy_dwh_data

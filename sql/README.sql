@@ -1,0 +1,14 @@
+-- ============================================================
+-- Pharmacy DWH — SQL Scripts Directory
+-- ============================================================
+-- This directory holds DDL (table creation) and DML (data
+-- manipulation) scripts for the pharmacy_dwh database.
+--
+-- Structure (Fase 3+):
+--   01_create_schema.sql   — Create dwh schema
+--   02_dim_medicine.sql    — dim_medicine table DDL
+--   03_dim_time.sql        — dim_time table DDL
+--   04_dim_vendor.sql      — dim_vendor table DDL
+--   05_fact_inventory.sql  — fact_pharmacy_inventory DDL
+--
+-- Scripts are designed to be idempotent (CREATE IF NOT EXISTS).
