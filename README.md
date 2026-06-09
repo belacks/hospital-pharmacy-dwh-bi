@@ -4,8 +4,6 @@
 
 This project implements a full DWH pipeline: from raw staging data (EHP system exports) through ETL transformation into a Star Schema, with a BI dashboard layer for pharmacy operational analytics.
 
-📄 **Full project documentation:** see `laporan_DWH_Kel3_REVISED.pdf` (BAB 4)
-
 ---
 
 ## Tech Stack
