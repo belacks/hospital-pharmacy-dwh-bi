@@ -211,7 +211,9 @@ def load_fact_inventory():
         "stock_availability_pct",
         "valuasi",
         "pengeluaran",
-        "wastage_ratio_pct"
+        "wastage_ratio_pct",
+        "turnover_ratio",
+        "stock_coverage_days"
     ]
     
     for idx, filepath in enumerate(invn_files, 1):
@@ -251,6 +253,40 @@ def load_fact_inventory():
             ])
         )
         
+        # Calculate ITOR (turnover_ratio) in-memory per SKU partition
+        df_grouped = df_grouped.with_columns([
+            pl.when(pl.col("opening_qty").mean().over("MAT_SKU") > 0)
+            .then(pl.col("issued_qty").sum().over("MAT_SKU") / pl.col("opening_qty").mean().over("MAT_SKU"))
+            .otherwise(0.0)
+            .fill_nan(0.0)
+            .fill_null(0.0)
+            .round(2)
+            .alias("turnover_ratio")
+        ])
+        
+        # Calculate Stock Coverage Days (KPI 5) using rolling 30-day window
+        df_daily = (
+            df_grouped.group_by(["movement_date", "MAT_SKU"])
+            .agg(pl.col("issued_qty").sum().alias("daily_issued"))
+            .sort("movement_date")
+        )
+        df_daily_rolling = (
+            df_daily
+            .rolling(index_column="movement_date", period="30d", group_by="MAT_SKU")
+            .agg(pl.col("daily_issued").mean().alias("avg_issued_30d"))
+        )
+        df_grouped = (
+            df_grouped
+            .join(df_daily_rolling, on=["movement_date", "MAT_SKU"])
+            .with_columns([
+                pl.when((pl.col("avg_issued_30d") > 0) & (pl.col("closed_qty") > 0))
+                .then(pl.col("closed_qty") / pl.col("avg_issued_30d"))
+                .otherwise(0.0)
+                .round(2)
+                .alias("stock_coverage_days")
+            ])
+        )
+        
         # Map natural keys to surrogate keys on the aggregated dataset (10x fewer join rows!)
         df_fact = (
             df_grouped
@@ -264,17 +300,17 @@ def load_fact_inventory():
         
         # Compute the 4 daily analytical metrics directly in memory
         df_metrics = df_fact.with_columns([
-            pl.when(pl.col("opening_qty") + pl.col("received_qty") > 0)
+            pl.when((pl.col("opening_qty") + pl.col("received_qty") > 0) & (pl.col("closed_qty") > 0))
             .then((pl.col("closed_qty") * 100.0) / (pl.col("opening_qty") + pl.col("received_qty")))
             .otherwise(0.0)
             .round(2)
             .alias("stock_availability_pct"),
             
-            (pl.col("closed_qty") * pl.col("unit_cost")).alias("valuasi"),
+            (pl.max_horizontal(0.0, pl.col("closed_qty")) * pl.col("unit_cost")).alias("valuasi"),
             
             (pl.col("issued_qty") * pl.col("unit_cost")).alias("pengeluaran"),
             
-            pl.when(pl.col("received_qty") > 0)
+            pl.when(pl.col("received_qty") > pl.col("issued_qty"))
             .then(((pl.col("received_qty") - pl.col("issued_qty")) * 100.0) / pl.col("received_qty"))
             .otherwise(0.0)
             .round(2)

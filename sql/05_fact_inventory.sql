@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS fact_pharmacy_inventory (
     valuasi                 NUMERIC(18,2) NOT NULL DEFAULT 0.00,
     pengeluaran             NUMERIC(18,2) NOT NULL DEFAULT 0.00,
     wastage_ratio_pct       NUMERIC(5,2) NOT NULL DEFAULT 0.00,
+    turnover_ratio          NUMERIC(18,2) NOT NULL DEFAULT 0.00,
+    stock_coverage_days     NUMERIC(18,2) NOT NULL DEFAULT 0.00,
     CONSTRAINT pk_fact_pharmacy_inventory
         PRIMARY KEY (date_id_fk, medicine_id_fk, vendor_id_fk)
 );
